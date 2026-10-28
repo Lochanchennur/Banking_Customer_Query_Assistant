@@ -12,18 +12,54 @@ from app.ai.tools import (
     tool_get_accounts
 )
 
-# Common regex patterns
-RE_BALANCE = re.compile(r'\b(balance|money\s+in\s+my|how\s+much\s+(do\s+i\s+have|in\s+my\s+account)|available\s+funds)\b', re.I)
+RE_BALANCE = re.compile(r'\b(balance|money\s+(do\s+i\s+have|in\s+my)|cash|funds?|how\s+much(\s+\w+)?\s+(do\s+i\s+have|in\s+my\s+account)|available\s+funds|sitting\s+in\s+my\s+account)\b', re.I)
 RE_TRANSACTIONS = re.compile(r'\b(transactions?|history|recent\s+(payments?|activity|charges?)|last\s+(\d+|five|ten|three)?\s*transactions?)\b', re.I)
-RE_SPENDING = re.compile(r'\b(spend|spent|expenses?|expenditure|how\s+much\s+(did\s+i\s+spend|was\s+spent))\b', re.I)
-RE_RATES = re.compile(r'\b(interest\s*rates?|rates?|what\s+is\s+the\s+rate|loan\s+rate|fd\s+rate|roi)\b', re.I)
-RE_ELIGIBILITY = re.compile(r'\b(eligible|eligibility|can\s+i\s+get\s+a\s+loan|apply\s+for\s+a\s+loan|qualify)\b', re.I)
+RE_SPENDING = re.compile(r'\b(spend|spending|spent|expenses?|expenditure|blow\s+on|paid\s+for|how\s+much\s+(did\s+i\s+spend|was\s+spent))\b', re.I)
+RE_RATES = re.compile(r'\b(interest\s*rates?|rates?|cost\s+of\s+borrowing|mortgage\s+rate|what\s+is\s+the\s+rate|loan\s+rate|fd\s+rate|roi)\b', re.I)
+RE_ELIGIBILITY = re.compile(r'\b(eligible|eligibility|meet\s+criteria|criteria\s+for|personal\s+credit|can\s+i\s+(get|apply\s+for)\s+(a\s+)?(personal\s+|home\s+)?loan|apply\s+for\s+(a\s+)?(personal\s+|home\s+)?loan|qualify)\b', re.I)
 RE_ACCOUNTS = re.compile(r'\b(my\s+accounts|list\s+accounts|which\s+accounts|account\s+numbers?)\b', re.I)
-RE_FAQ = re.compile(r'\b(how\s+(do|can)\s+i|download|statement|pin|freeze|block|limit|upi|neft|clearance|tax\s+certificate)\b', re.I)
-RE_INJECTION = re.compile(r'(ignore\s+(all\s+)?(previous|prior)\s+instructions|system\s+prompt|bypass|drop\s+table|select\s+\*\s+from|delete\s+from|reveal\s+all|other\s+customers|admin\s+mode)', re.I)
+RE_FAQ = re.compile(r'\b(how\s+(do|can|often)\s+i|how\s+often|download|statement|pin|freeze|block|limit|upi|neft|clearance|tax\s+certificate|calculated|credited)\b', re.I)
+
+RE_INJECTION = re.compile(
+    r'(ignore\s+(all\s+)?(previous|prior)\s+instructions|system\s+prompt|bypass|drop\s+table|select\s+.*\s+from|delete\s+from|insert\s+into|union\s+select|;\s*drop|;\s*delete|;\s*update|reveal\s+all|other\s+customers|admin\s+mode|--|\bexec\s*\()',
+    re.I
+)
 
 def detect_prompt_injection(message: str) -> bool:
+    """Detect prompt injection and SQL injection patterns in user query."""
     return bool(RE_INJECTION.search(message))
+
+def check_security_violation(customer: Customer, message: str) -> Optional[str]:
+    """
+    Enforce security guardrails:
+    1. Prompt injection & SQL injection defense
+    2. Cross-customer data isolation & unauthorized account probing
+    """
+    clean_msg = message.strip()
+    if detect_prompt_injection(clean_msg):
+        return "Prompt injection or SQL injection pattern detected."
+
+    msg_lower = clean_msg.lower()
+    
+    # Cross-customer access prevention
+    other_targets = []
+    if customer.id == "cust_rajesh":
+        other_targets = ["priya", "vikram", "acc_priya", "acc_vikram"]
+    elif customer.id == "cust_priya":
+        other_targets = ["rajesh", "vikram", "acc_rajesh", "acc_vikram"]
+    elif customer.id == "cust_vikram":
+        other_targets = ["rajesh", "priya", "acc_rajesh", "acc_priya"]
+
+    for target in other_targets:
+        if target in msg_lower:
+            return f"Unauthorized cross-customer access attempt for '{target}' blocked."
+
+    if any(phrase in msg_lower for phrase in [
+        "other customer", "another customer", "someone else's", "all customers", "other account"
+    ]):
+        return "Unauthorized multi-tenant cross-customer access blocked."
+
+    return None
 
 def process_deterministic_query(
     db: Session,
@@ -36,10 +72,11 @@ def process_deterministic_query(
     """
     clean_msg = message.strip()
     
-    # 1. Check prompt injection
-    if detect_prompt_injection(clean_msg):
+    # 1. Enforce security guardrails
+    violation = check_security_violation(customer, clean_msg)
+    if violation:
         return {
-            "reply": "Security Notice: I cannot fulfill this request. In accordance with NexaBank security policies, banking assistant sessions are strictly isolated to authenticated customer operations and protected against system prompt modifications.",
+            "reply": "Security Notice: I cannot fulfill this request. In accordance with NexaBank security policies, banking assistant sessions are strictly isolated to authenticated customer operations and protected against system prompt modifications or unauthorized cross-customer queries.",
             "intent": "SECURITY_ALERT",
             "tools_executed": [],
             "structured_data": None,
@@ -92,7 +129,7 @@ def process_deterministic_query(
         
         # Check category
         category = None
-        for cat_name in ["food", "groceries", "dining", "utilities", "bills", "shopping", "travel", "entertainment", "healthcare"]:
+        for cat_name in ["food", "groceries", "dining", "restaurant", "restaurants", "utility", "utilities", "bills", "shopping", "travel", "entertainment", "healthcare"]:
             if cat_name in clean_msg.lower():
                 category = cat_name
                 break
@@ -113,6 +150,7 @@ def process_deterministic_query(
                 "period": period_label,
                 "category": category,
                 "amount": cat_spent,
+                "total_spent": cat_spent,
                 "matching_count": len(spend_res.get("matching_transactions", []))
             }
             reply_parts.append(
@@ -202,7 +240,7 @@ def process_deterministic_query(
         )
 
     # Check Product Rates intent
-    if RE_RATES.search(clean_msg) and not RE_ELIGIBILITY.search(clean_msg):
+    if RE_RATES.search(clean_msg):
         intents.append("PRODUCT_RATES")
         p_filter = None
         if "home" in clean_msg.lower():

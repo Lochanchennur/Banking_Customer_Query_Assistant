@@ -88,10 +88,12 @@ def tool_calculate_spending_summary(
     safe_period = period if period in ["this_month", "last_month", "all"] else "last_month"
     insights = calculate_spending_insights(db, customer.id, period=safe_period)
     
-    # If specific category queried (e.g., "food")
+    # If specific category queried (e.g., "food", "utility", "restaurants")
     if category:
         cat_lower = category.lower().strip()
-        matching_cats = [c for c in insights.by_category if cat_lower in c.category.lower() or (cat_lower == "food" and c.category in ["DINING", "GROCERIES"])]
+        from app.services.banking_service import CATEGORY_ALIASES
+        target_categories = CATEGORY_ALIASES.get(cat_lower, [cat_lower.upper()])
+        matching_cats = [c for c in insights.by_category if c.category in target_categories or cat_lower in c.category.lower()]
         cat_spent = sum(c.amount for c in matching_cats)
         
         # Also fetch the matching transaction records for transparency

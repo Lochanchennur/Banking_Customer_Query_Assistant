@@ -25,6 +25,7 @@ CATEGORY_ALIASES = {
     "food": ["DINING", "GROCERIES"],
     "dining": ["DINING"],
     "restaurants": ["DINING"],
+    "restaurant": ["DINING"],
     "groceries": ["GROCERIES"],
     "grocery": ["GROCERIES"],
     "supermarket": ["GROCERIES"],

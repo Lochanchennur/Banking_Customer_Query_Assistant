@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.customer import Customer
 from app.schemas.chat import ChatRequest, ChatResponse, ToolExecutionRecord
-from app.ai.fallback_engine import process_deterministic_query, detect_prompt_injection
+from app.ai.fallback_engine import process_deterministic_query, detect_prompt_injection, check_security_violation
 from app.ai.gemini_client import is_gemini_available, execute_gemini_with_function_calling
 from app.services.audit_service import log_audit_event
 
@@ -32,8 +32,9 @@ def execute_chat_query(
     req_id = f"req_{uuid.uuid4().hex[:10]}"
     message = request.message.strip()
 
-    # Security rule 1: Prompt injection defense
-    if detect_prompt_injection(message):
+    # Security check: Prompt injection, SQL injection & unauthorized cross-customer access
+    violation = check_security_violation(customer, message)
+    if violation:
         latency_ms = (time.time() - start_time) * 1000.0
         log_audit_event(
             db=db,
@@ -48,7 +49,7 @@ def execute_chat_query(
         )
         return ChatResponse(
             message_id=req_id,
-            reply="Security Notice: I cannot fulfill this request. In accordance with NexaBank security policies, banking assistant sessions are strictly isolated to authenticated customer operations and protected against system prompt modifications.",
+            reply="Security Notice: I cannot fulfill this request. In accordance with NexaBank security policies, banking assistant sessions are strictly isolated to authenticated customer operations and protected against system prompt modifications or unauthorized cross-customer queries.",
             intent="SECURITY_ALERT",
             tools_executed=[],
             structured_data=None,
