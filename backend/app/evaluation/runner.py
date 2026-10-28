@@ -33,8 +33,8 @@ def validate_financial_data_against_sqlite(
     intent = res.intent
     structured = res.structured_data
 
-    # Security alerts, prompt injection, and ambiguous queries must have no financial claims
-    if intent in ["SECURITY_ALERT", "AMBIGUOUS_QUERY"]:
+    # Security alerts, prompt injection, ambiguous queries, and unsupported requests must have no financial claims
+    if intent in ["SECURITY_ALERT", "AMBIGUOUS_QUERY", "UNSUPPORTED_REQUEST"]:
         return res.structured_data is None and len(res.tools_executed) == 0
 
     if not structured:

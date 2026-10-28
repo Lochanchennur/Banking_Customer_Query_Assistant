@@ -75,7 +75,7 @@ export const DiagnosticsPage: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-slate-500">
-            55 automated benchmark questions covering balance, transactions, rates, loans, security, and compound queries
+            70 automated benchmark questions covering balance, transactions, rates, loans, typos, security, compound, and out-of-scope queries
           </p>
         </div>
 
@@ -87,7 +87,7 @@ export const DiagnosticsPage: React.FC = () => {
           {running ? (
             <>
               <RefreshCw className="w-4 h-4 animate-spin" />
-              <span>Running 55 Test Queries...</span>
+              <span>Running 70 Test Queries...</span>
             </>
           ) : (
             <>

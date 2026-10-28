@@ -12,13 +12,18 @@ from app.ai.tools import (
     tool_get_accounts
 )
 
-RE_BALANCE = re.compile(r'\b(balance|money\s+(do\s+i\s+have|in\s+my)|cash|funds?|how\s+much(\s+\w+)?\s+(do\s+i\s+have|in\s+my\s+account)|available\s+funds|sitting\s+in\s+my\s+account)\b', re.I)
-RE_TRANSACTIONS = re.compile(r'\b(transactions?|history|recent\s+(payments?|activity|charges?)|last\s+(\d+|five|ten|three)?\s*transactions?)\b', re.I)
-RE_SPENDING = re.compile(r'\b(spend|spending|spent|expenses?|expenditure|blow\s+on|paid\s+for|how\s+much\s+(did\s+i\s+spend|was\s+spent))\b', re.I)
-RE_RATES = re.compile(r'\b(interest\s*rates?|rates?|cost\s+of\s+borrowing|mortgage\s+rate|what\s+is\s+the\s+rate|loan\s+rate|fd\s+rate|roi)\b', re.I)
-RE_ELIGIBILITY = re.compile(r'\b(eligible|eligibility|meet\s+criteria|criteria\s+for|personal\s+credit|can\s+i\s+(get|apply\s+for)\s+(a\s+)?(personal\s+|home\s+)?loan|apply\s+for\s+(a\s+)?(personal\s+|home\s+)?loan|qualify)\b', re.I)
+RE_BALANCE = re.compile(r'\b(balan[sc]e?|balence|chek\s+(my\s+)?(savngs|checkng|acc|bal)|(money|mony)\s+(do\s+i\s+have|in\s+my)|cash|funds?|how\s+much(\s+\w+)?\s+(do\s+i\s+have|in\s+my\s+account)|available\s+funds|sitting\s+in\s+my\s+account)\b', re.I)
+RE_TRANSACTIONS = re.compile(r'\b(trans?actions?|trasnactions?|txns?|history|recent\s+(payments?|activity|charges?)|last\s+(\d+|five|ten|three)?\s*trans?actions?)\b', re.I)
+RE_SPENDING = re.compile(r'\b(spend|spending|spent|spnt|expenses?|expenditure|blow\s+on|paid\s+for|how\s+much\s+(did\s+i\s+spend|was\s+spent)|(mony|money)\s+spnt)\b', re.I)
+RE_RATES = re.compile(r'\b(interest\s*rates?|intrst\s*rtes?|rates?|rtes?|cost\s+of\s+borrowing|mortgage\s+rate|what\s+is\s+the\s+rate|loan\s+rate|fd\s+rate|roi)\b', re.I)
+RE_ELIGIBILITY = re.compile(r'\b(eligible|eligibility|elgible|meet\s+criteria|criteria\s+for|personal\s+credit|can\s+i\s+(get|apply\s+for)\s+(a\s+)?(personal\s+|home\s+)?lo?ane?|apply\s+for\s+(a\s+)?(personal\s+|home\s+)?lo?ane?|qualify)\b', re.I)
 RE_ACCOUNTS = re.compile(r'\b(my\s+accounts|list\s+accounts|which\s+accounts|account\s+numbers?)\b', re.I)
 RE_FAQ = re.compile(r'\b(how\s+(do|can|often)\s+i|how\s+often|download|statement|pin|freeze|block|limit|upi|neft|clearance|tax\s+certificate|calculated|credited)\b', re.I)
+
+RE_UNSUPPORTED = re.compile(
+    r'\b(buy\s+(\d+\s+)?(shares(\s+of)?|stocks?|bitcoin|crypto|gold|tesla|apple)|shares\s+of|stocks?|crypto|trade\s+(stocks?|equities)|wire\s+transfer\s+to|transfer\s+.*to\s+(an?\s+)?offshore|transfer\s+\d+.*to\s+\w+|book\s+(a\s+)?(flight|hotel|ticket)|weather\s+in|tell\s+me\s+a\s+joke|write\s+a\s+poem|who\s+won\s+the|sports\s+score)\b',
+    re.I
+)
 
 RE_INJECTION = re.compile(
     r'(ignore\s+(all\s+)?(previous|prior)\s+instructions|system\s+prompt|bypass|drop\s+table|select\s+.*\s+from|delete\s+from|insert\s+into|union\s+select|;\s*drop|;\s*delete|;\s*update|reveal\s+all|other\s+customers|admin\s+mode|--|\bexec\s*\()',
@@ -82,6 +87,17 @@ def process_deterministic_query(
             "structured_data": None,
             "source": "deterministic-fallback",
             "disclaimer": "Security boundary enforcement active."
+        }
+
+    # 2. Check unsupported / out-of-scope requests
+    if RE_UNSUPPORTED.search(clean_msg):
+        return {
+            "reply": "Service Boundary Notice: NexaBank AI is authorized for informational account balance queries, transaction history analysis, spending breakdowns, indicative loan evaluations, and official interest rate policies. Non-banking requests, trade execution, and external fund disbursements cannot be fulfilled through this assistant. Please use the NexaBank mobile portal or contact customer support for transaction execution.",
+            "intent": "UNSUPPORTED_REQUEST",
+            "tools_executed": [],
+            "structured_data": None,
+            "source": "deterministic-fallback",
+            "disclaimer": "Informational services only. Transaction execution requires authenticated portal access."
         }
 
     tools_executed = []
